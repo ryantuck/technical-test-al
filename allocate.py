@@ -4,6 +4,15 @@ import sys
 
 def allocate(amt, investors, reqs, avgs):
     """
+    Allocates an amt among a pool of investors given their requested
+    and historical average amounts.
+
+    Allocates requested amount to investor if less than prorated amt.
+
+    Recursively calculates prorated amounts for remaining pool.
+
+    Returns: dict of allocated amts {investor: allocated_amount}
+
     EXAMPLE
     Available allocation: $100
     Investor A requested to invest $150
@@ -79,6 +88,9 @@ def parse_input(input_data):
 
 
 def main():
+    """
+    Read stdin, parse, allocate, dump results to stdout
+    """
     input_data = json.loads(read_stdin())
     amt, investors, reqs, avgs = parse_input(input_data)
     output_data = allocate(amt, investors, reqs, avgs)
