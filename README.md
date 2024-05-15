@@ -12,3 +12,9 @@ To test for success:
 ```
 make test
 ```
+
+Or one-liner:
+
+```
+make -B setup targets test
+```
