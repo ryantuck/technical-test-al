@@ -2,7 +2,7 @@ import json
 import sys
 
 
-def allocate(allocation_amount, investor_amounts):
+def allocate(amt, investors, reqs, avgs):
     """
     EXAMPLE
     Available allocation: $100
@@ -16,73 +16,47 @@ def allocate(allocation_amount, investor_amounts):
     Investor A will invest $100 * (100 / (100 + 25)) = $80
     Investor B will invest $100 * (25 / (100 + 25)) = $20
     """
-    investors = set(inv['name'] for inv in investor_amounts)
-
-    investor_requests = {
-        investor['name']: investor['requested_amount']
-        for investor in investor_amounts
-    }
-
-    investor_averages = {
-        investor['name']: investor['average_amount']
-        for investor in investor_amounts
-    }
-
-    return allocate_recursive(
-        amt=allocation_amount,
-        investors=investors,
-        reqs=investor_requests,
-        avgs=investor_averages,
-    )
-
-    # TODO handle case where requested_amt < prorated_allocation
-    return {
-        investor: investor_averages[investor] / total_amt_averages * allocation_amount
-        for investor, requested_amt in investor_requests.items()
-    }
-
-
-def _weigh_allocation(amt, avgs):
-    return {investor: avg / sum(avgs.values()) * amt for investor, avg in avgs.items()}
-
-def allocate_recursive(amt, investors, reqs, avgs):
+    assert investors == set(reqs.keys()) == set(avgs.keys())
 
     output = {}
 
-    while True: # TODO avoid, should deterministically resolve
+    if investors == set():
+        return {}
 
-        if investors == set():
-            break
+    # simple case - return requests if total requests less than allocation amount
+    if sum(reqs.values()) < amt:
+        for inv, req in reqs.items():
+            output[inv] = req
+        return output
 
-        inv_reqs = {inv: req for inv, req in reqs.items() if inv in investors}
+    # prorate amounts based on historical avgs and available allocation
+    prorated_amts = {investor: avg / sum(avgs.values()) * amt for investor, avg in avgs.items()}
 
-        if sum(inv_reqs.values()) < amt: # not sure if this case gets hit?
-            for inv, req in inv_reqs.items():
-                output[inv] = req
-            break
+    # identify investors with lower requests than their prorated amt
+    invs_req_lt_avg = set(inv for inv in investors if reqs[inv] < prorated_amts[inv])
 
-        inv_avgs = {inv: avg for inv, avg in avgs.items() if inv in investors}
+    # return prorated amts if no low requests
+    if invs_req_lt_avg == set():
+        output.update(prorated_amts)
+        return output
 
-        prorated_amts = _weigh_allocation(amt, inv_avgs)
-        print(f'prorated_amts: {prorated_amts}', file=sys.stderr)
+    # update variables given updated investor pool
+    for inv in invs_req_lt_avg:
 
-        use_reqs_instead = set(inv for inv in investors if reqs[inv] < prorated_amts[inv])
-        print(f'use_reqs_instead: {use_reqs_instead}', file=sys.stderr)
+        # assign to output
+        output[inv] = reqs[inv]
 
-        # if prorated amts are good to go, update output and exit
-        if use_reqs_instead == set():
-            for inv in investors:
-                output[inv] = prorated_amts[inv]
-            break
+        # remove inv, subtract amt from vars
+        investors = investors - set([inv])    
+        amt = amt - reqs[inv]
+        reqs.pop(inv)
+        avgs.pop(inv)
 
-        # update output to use reqs where appropriate
-        for inv in use_reqs_instead:
-            output[inv] = reqs[inv]
-            investors = investors - set([inv])
-            amt = amt - reqs[inv]
+    # recursively update allocation as needed with new values
+    remaining_vals = allocate(amt, investors, reqs, avgs)
+    output.update(remaining_vals)
 
     return output
-
 
 
 def read_stdin():
@@ -90,9 +64,24 @@ def read_stdin():
     return '\n'.join(line for line in sys.stdin)
 
 
+def parse_input(input_data):
+    """
+    Return tuple of formatted data for recursive allocation.
+    """
+    allocation_amount = input_data['allocation_amount']
+    investor_amounts = input_data['investor_amounts']
+
+    investors = set(inv['name'] for inv in investor_amounts)
+    reqs = {inv['name']: inv['requested_amount'] for inv in investor_amounts}
+    avgs = {inv['name']: inv['average_amount'] for inv in investor_amounts}
+
+    return allocation_amount, investors, reqs, avgs
+
+
 def main():
     input_data = json.loads(read_stdin())
-    output_data = allocate(**input_data)
+    amt, investors, reqs, avgs = parse_input(input_data)
+    output_data = allocate(amt, investors, reqs, avgs)
     print(json.dumps(output_data, sort_keys=True))
 
 
