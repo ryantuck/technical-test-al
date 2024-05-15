@@ -6,3 +6,9 @@ To build output json files in `target/`:
 make setup
 make targets
 ```
+
+To test for success:
+
+```
+make test
+```
